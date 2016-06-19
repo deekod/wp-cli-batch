@@ -144,7 +144,7 @@ curl http://loripsum.net/api/5/medium/decorate/link/ul/ol/dl/bq/code/headers/ | 
 
 echo.
 echo --------------------------------------------------------------------------------
-echo Création des menu
+echo Création du menu
 echo.
 
 call wp option update show_on_front page
@@ -166,7 +166,7 @@ cd %ROOT%/%NAME%
 :: Activation des permaliens
 call wp rewrite structure /%%%%postname%%%%/ --hard
 
-:: On nettoie la fenêtre, si vous lancez ce script pour la première fois, décommentez cls pour pouvoir visualiser les erreurs.
+:: On nettoie la fenêtre, si vous lancez ce script pour la première fois, laissez cls en commentaire pour pouvoir visualiser les erreurs éventuelles.
 :: cls
 
 echo.
