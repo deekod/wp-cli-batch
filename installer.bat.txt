@@ -1,0 +1,216 @@
+@echo off
+
+:: TRES IMPORTANT N'OUBLIEZ PAS QUE VOUS DEVEZ AJOUTER LE CHEMIN VERS CONFIG.YML DANS VOS VARIABLES D'ENVIRONNEMENT UTILISATEUR WINDOWS WP_CLI_CONFIG_PATH=%USERPROFILE%\.wp-cli\config.yml
+:: Dans le fichier config.yml n'oubliez pas la ligne, sinon les permaliens ne fonctionneront pas : - mod_rewrite
+
+:: nous permet de faire passer les accents dans la console
+chcp 65001
+    
+:: Remplacez ici avec vos variables
+
+SET ROOT=C:\xampp\htdocs
+SET DBUSER=root
+SET DBPASS=
+SET USER=admin
+SET EMAIL=votre@email.com
+SET BLOGDESC=Mon site Wordpress
+
+:: Génération du mot de passe
+Setlocal EnableDelayedExpansion
+Set _RNDLength=10
+Set _Alphanumeric=ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789
+Set _Str=%_Alphanumeric%987654321
+:_LenLoop
+IF NOT "%_Str:~18%"=="" SET _Str=%_Str:~9%& SET /A _Len+=9& GOTO :_LenLoop
+SET _tmp=%_Str:~9,1%
+SET /A _Len=_Len+_tmp
+Set _count=0
+SET _RndAlphaNum=
+:_loop
+Set /a _count+=1
+SET _RND=%Random%
+Set /A _RND=_RND%%%_Len%
+SET _RndAlphaNum=!_RndAlphaNum!!_Alphanumeric:~%_RND%,1!
+If !_count! lss %_RNDLength% goto _loop
+Set PASSWORD=!_RndAlphaNum!
+
+:: Est-ce qu'on a bien le nom du projet ?
+IF [%1] == [] GOTO fatal
+
+echo.
+echo.
+echo  `7MMF'     A     `7MF' .g8""8q. `7MM"""Mq.  `7MM"""Yb. `7MM"""Mq.`7MM"""Mq.  `7MM"""YMM   .M"""bgd  .M"""bgd 
+echo    `MA     ,MA     ,V .dP'    `YM. MM   `MM.   MM    `Yb. MM   `MM. MM   `MM.   MM    `7  ,MI    "Y ,MI    "Y 
+echo     VM:   ,VVM:   ,V  dM'      `MM MM   ,M9    MM     `Mb MM   ,M9  MM   ,M9    MM   d    `MMb.     `MMb.     
+echo      MM.  M' MM.  M'  MM        MM MMmmdM9     MM      MM MMmmdM9   MMmmdM9     MMmmMM      `YMMNq.   `YMMNq. 
+echo      `MM A'  `MM A'   MM.      ,MP MM  YM.     MM     ,MP MM        MM  YM.     MM   Y  , .     `MM .     `MM 
+echo       :MM;    :MM;    `Mb.    ,dP' MM   `Mb.   MM    ,dP' MM        MM   `Mb.   MM     ,M Mb     dM Mb     dM 
+echo        VF      VF       `"bmmd"' .JMML. .JMM..JMMmmmdP' .JMML.    .JMML. .JMM..JMMmmmmMMM P"Ybmmd"  P"Ybmmd"  
+echo.
+echo ------------------------------------------------------------------------------------------------------------------
+echo Installation de WordPress
+echo.
+
+:: Déplacement dans le répertoire
+cd %ROOT%
+    
+:: On crée la variable du nom de la nouvelle installation
+SET NAME=%1
+
+:: Variable du nom de de la base
+SET DBNAME=%NAME%
+    
+echo.
+echo --------------------------------------------------------------------------------
+echo Démarrage de l'installation de WordPress..
+echo.
+    
+:: Création du répertoire
+mkdir %NAME%
+    
+:: On se déplace dans le répertoire qui va bien
+cd %NAME%
+    
+:: On télécharge Wordpress
+call wp core download --locale=fr_FR --force
+    
+:: Création du fichier wp-config
+:: On échappe les caractère pour éviter les erreurs de syntaxe
+(echo define^^^('WP_DEBUG', true^^^);^
+& echo define^^^('DISALLOW_FILE_EDIT', true ^^^);) | wp core config --dbname=%DBNAME% --dbuser=%DBUSER% --dbpass=%DBPASS% --extra-php
+    
+:: Création de la base de donnée
+call wp db create
+    
+:: Installation de wordpress
+call wp core install --url="http://localhost/%NAME%" --title="%NAME%" --admin_user="%USER%" --admin_password="%PASSWORD%" --admin_email="%EMAIL%"
+    
+echo.
+echo --------------------------------------------------------------------------------
+echo Installation des Plugins
+echo.
+
+:: Suppression d'akismet and hello dolly
+call wp plugin delete akismet
+call wp plugin delete hello
+
+:: On va lire chaque ligne de notre fichier texte qui comporte sur chaque ligne l'id d'un plugin pour l'installer et l'activer
+for /f "tokens=*" %%a in (%ROOT%\plugins.txt) do call wp plugin install %%a --activate
+
+echo.
+echo --------------------------------------------------------------------------------
+echo Configuration des options
+echo.
+
+:: Ce paramètre est un exemple de configuration avec wp-cli, passez cette valeur … 1 ou supprimer la ligne pour la production
+call wp option update blog_public 0
+    
+:: On affiche seulement 5 posts par page.
+call wp option update posts_per_page 5
+
+:: On met à jour la description du blog.
+call wp option update blogdescription "%BLOGDESC%"
+
+echo.
+echo --------------------------------------------------------------------------------
+echo Installation du theme
+echo.
+
+:: On supprime certains thèmes
+call wp theme delete twentyfourteen
+call wp theme delete twentyfifteen
+::call wp theme delete twentysixteen
+
+echo.
+echo --------------------------------------------------------------------------------
+echo Création des posts
+echo.
+
+:: On supprime les articles de base
+
+call wp post delete 1 --force
+call wp post delete 2 --force
+
+:: On crée de nouvelles pages
+call wp post create --post_type=page --post_content="Bonjour" --post_title="Accueil" --post_status=publish
+call wp post create --post_type=page --post_title="Blog" --post_status=publish
+call wp post create --post_type=page --post_title="Contact" --post_name="contactez-nous" --post_status=publish
+call wp post create %ROOT%\legal.txt --post_type=page --post_title="Mentions&nbsp;L&eacute;gales" --post_name="mentions-legales" --post_status=publish
+call wp post create --post_type=page --post_title="Cr&eacute;dits" --post_name="credits" --post_status=publish
+
+:: On va créer du post article rempli avec du bolobolo
+
+curl http://loripsum.net/api/5/medium/decorate/link/ul/ol/dl/bq/code/headers/ | wp post generate --post_content --count=6
+
+echo.
+echo --------------------------------------------------------------------------------
+echo Création des menu
+echo.
+
+call wp option update show_on_front page
+call wp option update page_on_front 3
+call wp option update page_for_posts 4
+
+:: on cree le menu principal
+
+call wp menu create "Menu Principal"
+call wp menu item add-post menu-principal 3
+call wp menu item add-post menu-principal 4
+call wp menu item add-post menu-principal 5
+call wp menu item add-post menu-principal 6
+call wp menu item add-post menu-principal 7
+call wp menu location assign menu-principal primary
+
+cd %ROOT%/%NAME%
+
+:: Activation des permaliens
+call wp rewrite structure /%%%%postname%%%%/ --hard
+
+:: On nettoie la fenêtre, si vous lancez ce script pour la première fois, décommentez cls pour pouvoir visualiser les erreurs.
+:: cls
+
+echo.
+echo.
+echo  `7MMF'     A     `7MF' .g8""8q. `7MM"""Mq.  `7MM"""Yb. `7MM"""Mq.`7MM"""Mq.  `7MM"""YMM   .M"""bgd  .M"""bgd 
+echo    `MA     ,MA     ,V .dP'    `YM. MM   `MM.   MM    `Yb. MM   `MM. MM   `MM.   MM    `7  ,MI    "Y ,MI    "Y 
+echo     VM:   ,VVM:   ,V  dM'      `MM MM   ,M9    MM     `Mb MM   ,M9  MM   ,M9    MM   d    `MMb.     `MMb.     
+echo      MM.  M' MM.  M'  MM        MM MMmmdM9     MM      MM MMmmdM9   MMmmdM9     MMmmMM      `YMMNq.   `YMMNq. 
+echo      `MM A'  `MM A'   MM.      ,MP MM  YM.     MM     ,MP MM        MM  YM.     MM   Y  , .     `MM .     `MM 
+echo       :MM;    :MM;    `Mb.    ,dP' MM   `Mb.   MM    ,dP' MM        MM   `Mb.   MM     ,M Mb     dM Mb     dM 
+echo        VF      VF       `"bmmd"' .JMML. .JMM..JMMmmmdP' .JMML.    .JMML. .JMM..JMMmmmmMMM P"Ybmmd"  P"Ybmmd"  
+echo.
+echo ------------------------------------------------------------------------------------------------------------------
+echo L'installation est complète. Votre nom d'utilisateur/mot de passe ont été copié dans le presse papier et sont listés ci-dessous.
+echo.
+echo Nom d'utilisateur: %USER%
+echo Mot de passe : %PASSWORD%
+echo.
+echo.
+
+echo.
+
+:: Ajout du login/mot de passe dans le presse-papier
+echo Nom d'utilisateur: %USER% Mot de passe: %PASSWORD% | clip
+
+:: on flush les permaliens dans une nouvelle fenêtre
+::start cmd /k wp rewrite flush --hard
+call wp rewrite flush --hard
+
+:: On lance notre projet dans notre navigateur
+start http://localhost/%NAME%
+
+:: On lance l'explorateur Windows dans le dossier de notre projet
+start %ROOT%/%NAME%
+
+pause
+    
+goto:eof
+
+:fatal
+echo.
+echo --------------------------------------------------------------------------------
+echo Merci de nommer votre installation Wordpress
+echo.
+goto:eof
+    
+:END
